@@ -11,7 +11,7 @@ from flask_jwt_extended import (
 )
 from marshmallow import ValidationError
 from models.user import UserModel
-from schema.user import UserSchema
+from schemas.user import UserSchema
 from blacklist import BLACKLIST
 
 BLANK_ERROR = "'{}' cannot be blank."
