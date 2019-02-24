@@ -13,13 +13,13 @@ from models.user import UserModel
 from schemas.user import UserSchema
 from blacklist import BLACKLIST
 
-BLANK_ERROR = "'{}' cannot be blank."
 USER_ALREADY_EXISTS = "A user with that username already exists."
 CREATED_SUCCESSFULLY = "User created successfully."
 USER_NOT_FOUND = "User not found."
 USER_DELETED = "User deleted."
 INVALID_CREDENTIALS = "Invalid credentials!"
 USER_LOGGED_OUT = "User <id={user_id}> successfully logged out."
+NOT_CONFIRMED_ERROR = "You have not confirmed registration, please check your email <{}>."
 
 user_schema = UserSchema()
 
@@ -27,9 +27,10 @@ user_schema = UserSchema()
 class UserRegister(Resource):
     @classmethod
     def post(cls):
-        user = user_schema.load(request.get_json())
+        user_json = request.get_json()
+        user = user_schema.load(user_json)
 
-        if UserModel.find_by_username(user["username"]):
+        if UserModel.find_by_username(user.username):
             return {"message": USER_ALREADY_EXISTS}, 400
 
         user.save_to_db()
@@ -38,12 +39,12 @@ class UserRegister(Resource):
 
 
 class User(Resource):
-
     @classmethod
     def get(cls, user_id: int):
         user = UserModel.find_by_id(user_id)
         if not user:
             return {"message": USER_NOT_FOUND}, 404
+
         return user_schema.dump(user), 200
 
     @classmethod
@@ -51,6 +52,7 @@ class User(Resource):
         user = UserModel.find_by_id(user_id)
         if not user:
             return {"message": USER_NOT_FOUND}, 404
+
         user.delete_from_db()
         return {"message": USER_DELETED}, 200
 
@@ -61,15 +63,14 @@ class UserLogin(Resource):
         user_json = request.get_json()
         user_data = user_schema.load(user_json)
 
-
         user = UserModel.find_by_username(user_data.username)
 
-        # this is what the `authenticate()` function did in security.py
-        if user and safe_str_cmp(user.password, user_data.password):
-            # identity= is what the identity() function did in security.py—now stored in the JWT
-            access_token = create_access_token(identity=user.id, fresh=True)
-            refresh_token = create_refresh_token(user.id)
-            return {"access_token": access_token, "refresh_token": refresh_token}, 200
+        if user and safe_str_cmp(user_data.password, user.password):
+            if user.activated:
+                access_token = create_access_token(identity=user.id, fresh=True)
+                refresh_token = create_refresh_token(user.id)
+                return {"access_token": access_token, "refresh_token": refresh_token}, 200
+            return {"message": NOT_CONFIRMED_ERROR.format(user.username)}, 400
 
         return {"message": INVALID_CREDENTIALS}, 401
 

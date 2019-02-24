@@ -4,31 +4,29 @@ from flask_jwt_extended import jwt_required, fresh_jwt_required
 from models.item import ItemModel
 from schemas.item import ItemSchema
 
+NAME_ALREADY_EXISTS = "An item with name '{}' already exists."
+ERROR_INSERTING = "An error occurred while inserting the item."
 ITEM_NOT_FOUND = "Item not found."
 ITEM_DELETED = "Item deleted."
-NAME_ALREADY_EXISTS = "An item with name '{}' already exists."
-INSERT_ERROR = "An error occurred while inserting the item."
 
-item_schema = ItemSchema
+item_schema = ItemSchema()
 item_list_schema = ItemSchema(many=True)
 
-class Item(Resource):
 
+class Item(Resource):
     @classmethod
     def get(cls, name: str):
         item = ItemModel.find_by_name(name)
         if item:
             return item_schema.dump(item), 200
+
         return {"message": ITEM_NOT_FOUND}, 404
 
     @classmethod
     @fresh_jwt_required
     def post(cls, name: str):
         if ItemModel.find_by_name(name):
-            return (
-                {"message": NAME_ALREADY_EXISTS.format(name)},
-                400,
-            )
+            return {"message": NAME_ALREADY_EXISTS.format(name)}, 400
 
         item_json = request.get_json()
         item_json["name"] = name
@@ -38,7 +36,7 @@ class Item(Resource):
         try:
             item.save_to_db()
         except:
-            return {"message": INSERT_ERROR}, 500
+            return {"message": ERROR_INSERTING}, 500
 
         return item_schema.dump(item), 201
 
@@ -49,6 +47,7 @@ class Item(Resource):
         if item:
             item.delete_from_db()
             return {"message": ITEM_DELETED}, 200
+
         return {"message": ITEM_NOT_FOUND}, 404
 
     @classmethod
@@ -68,7 +67,6 @@ class Item(Resource):
 
 
 class ItemList(Resource):
-
     @classmethod
     def get(cls):
         return {"items": item_list_schema.dump(ItemModel.find_all())}, 200
