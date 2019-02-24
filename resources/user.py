@@ -9,7 +9,6 @@ from flask_jwt_extended import (
     jwt_required,
     get_raw_jwt,
 )
-from marshmallow import ValidationError
 from models.user import UserModel
 from schemas.user import UserSchema
 from blacklist import BLACKLIST
@@ -28,10 +27,7 @@ user_schema = UserSchema()
 class UserRegister(Resource):
     @classmethod
     def post(cls):
-        try:
-            user = user_schema.load(request.get_json())
-        except ValidationError as err:
-            return err.messages, 400
+        user = user_schema.load(request.get_json())
 
         if UserModel.find_by_username(user["username"]):
             return {"message": USER_ALREADY_EXISTS}, 400
@@ -42,10 +38,6 @@ class UserRegister(Resource):
 
 
 class User(Resource):
-    """
-    This resource can be useful when testing our Flask app. We may not want to expose it to public users, but for the
-    sake of demonstration in this course, it can be useful when we are manipulating data regarding the users.
-    """
 
     @classmethod
     def get(cls, user_id: int):
@@ -66,11 +58,9 @@ class User(Resource):
 class UserLogin(Resource):
     @classmethod
     def post(cls):
-        try:
-            user_json = request.get_json()
-            user_data = user_schema.load(user_json)
-        except ValidationError as err:
-            return err.messages, 400
+        user_json = request.get_json()
+        user_data = user_schema.load(user_json)
+
 
         user = UserModel.find_by_username(user_data.username)
 
