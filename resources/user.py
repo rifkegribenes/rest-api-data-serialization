@@ -1,5 +1,5 @@
 from flask_restful import Resource
-from flask import request
+from flask import request, render_template, make_response
 from werkzeug.security import safe_str_cmp
 from flask_jwt_extended import (
     create_access_token,
@@ -19,7 +19,9 @@ USER_NOT_FOUND = "User not found."
 USER_DELETED = "User deleted."
 INVALID_CREDENTIALS = "Invalid credentials!"
 USER_LOGGED_OUT = "User <id={user_id}> successfully logged out."
-NOT_CONFIRMED_ERROR = "You have not confirmed registration, please check your email <{}>."
+NOT_CONFIRMED_ERROR = (
+    "You have not confirmed registration, please check your email <{}>."
+)
 
 user_schema = UserSchema()
 
@@ -69,7 +71,10 @@ class UserLogin(Resource):
             if user.activated:
                 access_token = create_access_token(identity=user.id, fresh=True)
                 refresh_token = create_refresh_token(user.id)
-                return {"access_token": access_token, "refresh_token": refresh_token}, 200
+                return (
+                    {"access_token": access_token, "refresh_token": refresh_token},
+                    200,
+                )
             return {"message": NOT_CONFIRMED_ERROR.format(user.username)}, 400
 
         return {"message": INVALID_CREDENTIALS}, 401
@@ -92,3 +97,19 @@ class TokenRefresh(Resource):
         current_user = get_jwt_identity()
         new_token = create_access_token(identity=current_user, fresh=False)
         return {"access_token": new_token}, 200
+
+
+class UserConfirm(Resource):
+    @classmethod
+    def get(cls, user_id: int):
+        user = UserModel.find_by_id(user_id)
+        if not user:
+            return {"message": USER_NOT_FOUND}, 404
+
+        user.activated = True
+        user.save_to_db()
+        # return redirect("http://localhost:3000/", code=302)  # redirect if we have a separate web app
+        headers = {"Content-Type": "text/html"}
+        return make_response(
+            render_template("confirmation_page.html", email=user.username), 200, headers
+        )
