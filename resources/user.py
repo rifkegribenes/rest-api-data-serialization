@@ -1,3 +1,4 @@
+import traceback
 from flask_restful import Resource
 from flask import request, render_template, make_response
 from werkzeug.security import safe_str_cmp
@@ -14,7 +15,9 @@ from schemas.user import UserSchema
 from blacklist import BLACKLIST
 
 USER_ALREADY_EXISTS = "A user with that username already exists."
-CREATED_SUCCESSFULLY = "User created successfully."
+EMAIL_ALREADY_EXISTS = "A user with that email already exists."
+FAILED_TO_CREATE = "Internal server error. Failed to create user."
+SUCCESS_REGISTER_MESSAGE = "Account created successfully. Please check your email for an account activation link."
 USER_NOT_FOUND = "User not found."
 USER_DELETED = "User deleted."
 INVALID_CREDENTIALS = "Invalid credentials!"
@@ -35,9 +38,18 @@ class UserRegister(Resource):
         if UserModel.find_by_username(user.username):
             return {"message": USER_ALREADY_EXISTS}, 400
 
-        user.save_to_db()
+        if UserModel.find_by_email(user.email):
+            return {"message": EMAIL_ALREADY_EXISTS}, 400
 
-        return {"message": CREATED_SUCCESSFULLY}, 201
+        try:
+            user.save_to_db()
+            user.send_confirmation_email()
+            return {"message": SUCCESS_REGISTER_MESSAGE}, 201
+        except:
+            traceback.print_exc()
+            return {"message": FAILED_TO_CREATE}, 500
+
+
 
 
 class User(Resource):
@@ -63,7 +75,7 @@ class UserLogin(Resource):
     @classmethod
     def post(cls):
         user_json = request.get_json()
-        user_data = user_schema.load(user_json)
+        user_data = user_schema.load(user_json, partial=("email",))
 
         user = UserModel.find_by_username(user_data.username)
 
@@ -108,7 +120,9 @@ class UserConfirm(Resource):
 
         user.activated = True
         user.save_to_db()
-        # return redirect("http://localhost:3000/", code=302)  # redirect if we have a separate web app
+        # return redirect("http://localhost:3000/", code=302)
+        # redirect if we have a separate web app
+        # if use this then need to import redirect from flask in line 2
         headers = {"Content-Type": "text/html"}
         return make_response(
             render_template("confirmation_page.html", email=user.username), 200, headers
