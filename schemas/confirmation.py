@@ -8,4 +8,3 @@ class ConfirmationSchema(ma.ModelSchema):
         dump_only = ("id", "expired_at", "confirmed")
         include_fk = True
 
-        
