@@ -1,8 +1,10 @@
-from flask import request, url_for
 from requests import Response
+from flask import request, url_for
+
 from db import db
 from libs.mailgun import Mailgun
 from models.confirmation import ConfirmationModel
+
 
 class UserModel(db.Model):
     __tablename__ = "users"
@@ -18,6 +20,7 @@ class UserModel(db.Model):
 
     @property
     def most_recent_confirmation(self) -> "ConfirmationModel":
+        # ordered by expiration time (in descending order)
         return self.confirmation.order_by(db.desc(ConfirmationModel.expire_at)).first()
 
     @classmethod
@@ -25,24 +28,21 @@ class UserModel(db.Model):
         return cls.query.filter_by(username=username).first()
 
     @classmethod
-    def find_by_id(cls, _id: int) -> "UserModel":
-        return cls.query.filter_by(id=_id).first()
-
-    @classmethod
     def find_by_email(cls, email: str) -> "UserModel":
         return cls.query.filter_by(email=email).first()
 
+    @classmethod
+    def find_by_id(cls, _id: int) -> "UserModel":
+        return cls.query.filter_by(id=_id).first()
+
     def send_confirmation_email(self) -> Response:
-        # http://localhost:5000/user_confirm/1
-        link = request.url_root[0:-1] + url_for(
+        subject = "Registration Confirmation"
+        link = request.url_root[:-1] + url_for(
             "confirmation", confirmation_id=self.most_recent_confirmation.id
         )
-        subject = "Registration confirmation"
         text = f"Please click the link to confirm your registration: {link}"
-        html = f'<html><p>Please click the link to confirm your registration: <a href="{link}">{link}</a></p></html>'
-
-        return Mailgun.send_email(self.email, subject, text, html)
-
+        html = f"<html>Please click the link to confirm your registration: <a href={link}>link</a></html>"
+        return Mailgun.send_email([self.email], subject, text, html)
 
     def save_to_db(self) -> None:
         db.session.add(self)

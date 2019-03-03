@@ -1,4 +1,4 @@
-import traceback, logging
+import traceback
 from flask_restful import Resource
 from flask import request
 from werkzeug.security import safe_str_cmp
@@ -13,13 +13,11 @@ from flask_jwt_extended import (
 from models.user import UserModel
 from schemas.user import UserSchema
 from blacklist import BLACKLIST
-from libs.mailgun import MailgunException
+from libs.mailgun import MailGunException
 from models.confirmation import ConfirmationModel
 
 USER_ALREADY_EXISTS = "A user with that username already exists."
 EMAIL_ALREADY_EXISTS = "A user with that email already exists."
-FAILED_TO_CREATE = "Internal server error. Failed to create user."
-SUCCESS_REGISTER_MESSAGE = "Account created successfully. Please check your email for an account activation link."
 USER_NOT_FOUND = "User not found."
 USER_DELETED = "User deleted."
 INVALID_CREDENTIALS = "Invalid credentials!"
@@ -27,6 +25,8 @@ USER_LOGGED_OUT = "User <id={user_id}> successfully logged out."
 NOT_CONFIRMED_ERROR = (
     "You have not confirmed registration, please check your email <{}>."
 )
+FAILED_TO_CREATE = "Internal server error. Failed to create user."
+SUCCESS_REGISTER_MESSAGE = "Account created successfully, an email with an activation link has been sent to your email address, please check."
 
 user_schema = UserSchema()
 
@@ -45,20 +45,18 @@ class UserRegister(Resource):
 
         try:
             user.save_to_db()
+
             confirmation = ConfirmationModel(user.id)
             confirmation.save_to_db()
             user.send_confirmation_email()
             return {"message": SUCCESS_REGISTER_MESSAGE}, 201
-        except MailgunException as e:
-            user.delete_from_db()
+        except MailGunException as e:
+            user.delete_from_db()  # rollback
             return {"message": str(e)}, 500
-        except Exception as e: #failed to save user to db
-            logging.exception(e)
+        except:  # failed to save user to db
             traceback.print_exc()
             user.delete_from_db()
             return {"message": FAILED_TO_CREATE}, 500
-
-
 
 
 class User(Resource):
@@ -97,7 +95,7 @@ class UserLogin(Resource):
                     {"access_token": access_token, "refresh_token": refresh_token},
                     200,
                 )
-            return {"message": NOT_CONFIRMED_ERROR.format(user.username)}, 400
+            return {"message": NOT_CONFIRMED_ERROR.format(user.email)}, 400
 
         return {"message": INVALID_CREDENTIALS}, 401
 
@@ -119,4 +117,3 @@ class TokenRefresh(Resource):
         current_user = get_jwt_identity()
         new_token = create_access_token(identity=current_user, fresh=False)
         return {"access_token": new_token}, 200
-
